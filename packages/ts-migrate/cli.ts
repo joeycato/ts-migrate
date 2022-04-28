@@ -197,6 +197,13 @@ yargs
           describe:
             'A message to add to the ts-expect-error or ts-ignore comments that are inserted.',
         })
+        .option('f', {
+          alias: 'eslintFixChanged',
+          default: true,
+          type: 'boolean',
+          describe:
+            'A message to add to the ts-expect-error or ts-ignore comments that are inserted.',
+        })
         .positional('folder', { type: 'string' })
         .require(['folder']),
     async (args) => {
@@ -226,12 +233,15 @@ yargs
         },
       };
 
-      const config = new MigrateConfig()
+      const configWithoutEslint = new MigrateConfig()
         .addPlugin(withChangeTracking(stripTSIgnorePlugin), {})
         .addPlugin(withChangeTracking(tsIgnorePlugin), {
           messagePrefix: args.messagePrefix,
-        })
-        .addPlugin(eslintFixChangedPlugin, {});
+        });
+
+      const config = args.eslintFixChanged
+        ? configWithoutEslint.addPlugin(eslintFixChangedPlugin, {})
+        : configWithoutEslint;
 
       const exitCode = await migrate({ rootDir, config });
 
