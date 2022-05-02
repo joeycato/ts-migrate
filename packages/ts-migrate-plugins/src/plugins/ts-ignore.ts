@@ -66,6 +66,7 @@ function getTextWithIgnores(
           )}... (Remove this comment to see the full error message.)`
         : message
     }`;
+
     if (!isIgnored[diagnosticLine]) {
       let commentLine = diagnosticLine;
       let pos = getStartOfLinePos(commentLine, sourceFile);

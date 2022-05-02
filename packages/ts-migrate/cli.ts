@@ -197,6 +197,12 @@ yargs
           describe:
             'A message to add to the ts-expect-error or ts-ignore comments that are inserted.',
         })
+        .option('s', {
+          alias: 'stripIgnores',
+          default: true,
+          type: 'boolean',
+          describe: 'Remove existing ts-ignore and ts-expect-errors.'
+        })
         .option('f', {
           alias: 'eslintFixChanged',
           default: true,
@@ -233,15 +239,19 @@ yargs
         },
       };
 
-      const configWithoutEslint = new MigrateConfig()
-        .addPlugin(withChangeTracking(stripTSIgnorePlugin), {})
-        .addPlugin(withChangeTracking(tsIgnorePlugin), {
-          messagePrefix: args.messagePrefix,
-        });
+      let config = new MigrateConfig();
 
-      const config = args.eslintFixChanged
-        ? configWithoutEslint.addPlugin(eslintFixChangedPlugin, {})
-        : configWithoutEslint;
+      if (args.stripIgnores) {
+        config = config.addPlugin(withChangeTracking(stripTSIgnorePlugin), {});
+      }
+
+      config = config.addPlugin(withChangeTracking(tsIgnorePlugin), {
+        messagePrefix: args.messagePrefix,
+      });
+
+      if (args.eslintFixChanged) {
+        config = config.addPlugin(eslintFixChangedPlugin, {});
+      }
 
       const exitCode = await migrate({ rootDir, config });
 
