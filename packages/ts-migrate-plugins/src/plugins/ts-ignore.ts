@@ -60,7 +60,10 @@ function getTextWithIgnores(
     const messagePrefixInComment = options.messagePrefix ? ` ${options.messagePrefix}` : '';
     const tsIgnoreCommentText = `@${errorExpression}${messagePrefixInComment} TS(${code}): ${
       message.length > messageLimit
-        ? `${message.slice(0, messageLimit)}... Remove this comment to see the full error message`
+        ? `${message.slice(
+            0,
+            messageLimit,
+          )}... (Remove this comment to see the full error message.)`
         : message
     }`;
     if (!isIgnored[diagnosticLine]) {
