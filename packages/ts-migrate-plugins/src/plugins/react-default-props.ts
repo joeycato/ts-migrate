@@ -364,6 +364,7 @@ function getWithDefaultPropsImport() {
       false,
       undefined,
       ts.factory.createNamedImports([
+        // @ts-expect-error Ignore this error because I'm not using this plugin.
         ts.factory.createImportSpecifier(
           undefined,
           ts.factory.createIdentifier('WithDefaultProps'),

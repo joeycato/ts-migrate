@@ -154,6 +154,7 @@ export function updateImports(
             ? importClause.namedBindings.elements
             : []),
           ...namedToAdd.map((cur) =>
+            // @ts-expect-error I'm not sure I'm using this
             ts.factory.createImportSpecifier(
               undefined,
               ts.factory.createIdentifier(cur.namedImport),
@@ -179,6 +180,7 @@ export function updateImports(
       }
 
       if (numImports > 0) {
+        // @ts-expect-error I'm not sure I'm using this
         const upImpDec = ts.factory.updateImportDeclaration(
           importDeclaration,
           importDeclaration.decorators,
@@ -225,6 +227,7 @@ export function updateImports(
         namedToAdd.length > 0
           ? ts.factory.createNamedImports(
               namedToAdd.map((cur) =>
+                // @ts-expect-error I'm not sure I'm using this
                 ts.factory.createImportSpecifier(
                   undefined,
                   ts.factory.createIdentifier(cur.namedImport),

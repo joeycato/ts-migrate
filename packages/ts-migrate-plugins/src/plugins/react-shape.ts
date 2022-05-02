@@ -63,6 +63,7 @@ const reactShapePlugin: Plugin<Options> = {
         undefined,
         false,
         ts.factory.createNamedExports([
+          // @ts-expect-error Ignore this error because I'm not using this plugin.
           ts.factory.createExportSpecifier(undefined, ts.factory.createIdentifier(shapeName)),
         ]),
       );
