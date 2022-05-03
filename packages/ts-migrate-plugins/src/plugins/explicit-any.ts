@@ -4,18 +4,37 @@ import ts from 'typescript';
 import { Plugin } from 'ts-migrate-server';
 import { isDiagnosticWithLinePosition } from '../utils/type-guards';
 import { AnyAliasOptions, validateAnyAliasOptions } from '../utils/validateOptions';
+import { updateImports } from './utils/imports';
+import updateSourceText from '../utils/updateSourceText';
 
 type Options = AnyAliasOptions;
 
 const explicitAnyPlugin: Plugin<Options> = {
   name: 'explicit-any',
 
-  run({ options, fileName, text, getLanguageService }) {
+  run({ options, fileName, text, getLanguageService, sourceFile }) {
     const semanticDiagnostics = getLanguageService().getSemanticDiagnostics(fileName);
     const diagnostics = semanticDiagnostics
       .filter(isDiagnosticWithLinePosition)
       .filter((d) => d.category === ts.DiagnosticCategory.Error);
-    return withExplicitAny(text, diagnostics, options.anyAlias);
+    let postTransform = withExplicitAny(text, diagnostics, options.anyAlias);
+
+    if (postTransform !== text) {
+      const updates = updateImports(
+        sourceFile,
+        [
+          {
+            namedImport: 'TODO',
+            moduleSpecifier: '@tvui/types',
+            isTypeOnly: true,
+          },
+        ],
+        [],
+      );
+      postTransform = updateSourceText(postTransform, updates);
+    }
+
+    return postTransform;
   },
 
   validate: validateAnyAliasOptions,

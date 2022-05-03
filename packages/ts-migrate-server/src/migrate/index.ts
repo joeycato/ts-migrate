@@ -18,7 +18,7 @@ export default async function migrate({
   tsConfigDir = rootDir,
   config,
   sources,
-}: MigrateParams): Promise<number> {
+}: MigrateParams): Promise<{ exitCode: number; updatedSourceFiles: Set<string> }> {
   let exitCode = 0;
   log.info(`TypeScript version: ${ts.version}`);
 
@@ -27,31 +27,21 @@ export default async function migrate({
   // Normalize sources to be an array of full paths.
   if (sources !== undefined) {
     sources = Array.isArray(sources) ? sources : [sources];
-    sources = sources.map((source) => path.join(rootDir, source));
-    log.info(`Ignoring sources from tsconfig.json, using the ones provided manually instead.`);
+    sources = sources.map((source) => path.resolve(rootDir, source));
   }
 
   const tsConfigFilePath = path.join(tsConfigDir, 'tsconfig.json');
   const project = await createProject({
     tsConfigFilePath,
-    skipAddingFilesFromTsConfig: sources !== undefined,
     skipFileDependencyResolution: true,
   });
-
-  // If we passed in our own sources, let's add them to the project.
-  // If not, let's just get all the sources in the project.
-  if (sources) {
-    await project.addSourceFilesByPaths(sources);
-  }
 
   log.info(`Initialized tsserver project in ${serverInitTimer.elapsedStr()}.`);
 
   log.info('Start...');
   const pluginsTimer = new PerfTimer();
   const updatedSourceFiles = new Set<string>();
-  const originalSourceFilesToMigrate = new Set<string>(
-    getSourceFilesToMigrate(project).map((file) => file.fileName),
-  );
+  const originalSourceFilesToMigrate = new Set<string>(sources);
 
   for (let i = 0; i < config.plugins.length; i += 1) {
     const { plugin, options: pluginOptions } = config.plugins[i];
@@ -113,7 +103,7 @@ export default async function migrate({
 
   log.info(`Wrote ${updatedSourceFiles.size} updated file(s) in ${writeTimer.elapsedStr()}.`);
 
-  return exitCode;
+  return { updatedSourceFiles, exitCode };
 }
 
 function getSourceFilesToMigrate(project: Project) {

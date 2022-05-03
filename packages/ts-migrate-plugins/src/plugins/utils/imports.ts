@@ -4,7 +4,7 @@ import { SourceTextUpdate } from '../../utils/updateSourceText';
 import { getTextPreservingWhitespace } from './text';
 
 export type DefaultImport = { defaultImport: string; moduleSpecifier: string };
-export type NamedImport = { namedImport: string; moduleSpecifier: string };
+export type NamedImport = { namedImport: string; moduleSpecifier: string, isTypeOnly?: boolean };
 export type ModuleImport = { moduleSpecifier: string };
 
 type AddImport = DefaultImport | NamedImport;
@@ -19,6 +19,8 @@ export function updateImports(
   const updates: SourceTextUpdate[] = [];
   const printer = ts.createPrinter();
 
+  // I'm not sure what the `usedIdentifiers` check is needed for. Is the idea that people are accidentally passing
+  // toAdd entries that are unused? In any event, it doesn't seem to detect `isTypeOnly` imports.
   const usedIdentifiers = getUsedIdentifiers(sourceFile);
   const presentedImports = getPresentedImportIdentifiers(sourceFile);
 
@@ -154,8 +156,8 @@ export function updateImports(
             ? importClause.namedBindings.elements
             : []),
           ...namedToAdd.map((cur) =>
-            // @ts-expect-error I'm not sure I'm using this
             ts.factory.createImportSpecifier(
+              cur.isTypeOnly || false,
               undefined,
               ts.factory.createIdentifier(cur.namedImport),
             ),
@@ -180,13 +182,13 @@ export function updateImports(
       }
 
       if (numImports > 0) {
-        // @ts-expect-error I'm not sure I'm using this
         const upImpDec = ts.factory.updateImportDeclaration(
           importDeclaration,
           importDeclaration.decorators,
           importDeclaration.modifiers,
           importClause,
           importDeclaration.moduleSpecifier,
+          undefined
         );
         const text = getTextPreservingWhitespace(importDeclaration, upImpDec, sourceFile);
         updates.push({
@@ -227,8 +229,8 @@ export function updateImports(
         namedToAdd.length > 0
           ? ts.factory.createNamedImports(
               namedToAdd.map((cur) =>
-                // @ts-expect-error I'm not sure I'm using this
                 ts.factory.createImportSpecifier(
+                  cur.isTypeOnly || false,
                   undefined,
                   ts.factory.createIdentifier(cur.namedImport),
                 ),
