@@ -15,13 +15,7 @@ const explicitAnyPlugin: Plugin<Options> = {
     const diagnostics = semanticDiagnostics
       .filter(isDiagnosticWithLinePosition)
       .filter((d) => d.category === ts.DiagnosticCategory.Error);
-    let postTransform = withExplicitAny(text, diagnostics, options.anyAlias);
-
-    if (postTransform !== text) {
-      postTransform = `import type { TODO } from '@tvui/types\`;\n${postTransform}`;
-    }
-
-    return postTransform;
+    return withExplicitAny(text, diagnostics, options.anyAlias);
   },
 
   validate: validateAnyAliasOptions,
