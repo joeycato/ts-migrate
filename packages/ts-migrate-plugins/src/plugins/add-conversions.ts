@@ -66,7 +66,35 @@ const addConversionsTransformerFactory =
           })
           .filter((node): node is ts.Expression => node !== null),
       );
-      visit(file);
+
+      let hasJsx = false;
+      function checkForJsx(node: ts.Node) {
+        if (
+          [
+            ts.SyntaxKind.JsxElement,
+            ts.SyntaxKind.JsxSelfClosingElement,
+            ts.SyntaxKind.JsxOpeningElement,
+            ts.SyntaxKind.JsxClosingElement,
+            ts.SyntaxKind.JsxFragment,
+            ts.SyntaxKind.JsxOpeningFragment,
+            ts.SyntaxKind.JsxClosingFragment,
+            ts.SyntaxKind.JsxAttribute,
+            ts.SyntaxKind.JsxAttributes,
+            ts.SyntaxKind.JsxSpreadAttribute,
+            ts.SyntaxKind.JsxExpression,
+          ].includes(node.kind)
+        ) {
+          hasJsx = true;
+        }
+        ts.visitEachChild(node, checkForJsx, context);
+        return node;
+      }
+
+      checkForJsx(file);
+
+      if (!hasJsx) {
+        visit(file);
+      }
       return file;
     };
 
