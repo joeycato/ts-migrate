@@ -4,8 +4,15 @@ import path from 'path';
 import { Plugin } from 'ts-migrate-server';
 import getTypeFromPropTypesObjectLiteral from './utils/react-props';
 import updateSourceText, { SourceTextUpdate } from '../utils/updateSourceText';
+import {
+  AnyAliasOptions,
+  AnyFunctionAliasOptions,
+  anyAliasProperty,
+  anyFunctionAliasProperty,
+  createValidate,
+} from '../utils/validateOptions';
 
-type Options = { anyAlias?: string; anyFunctionAlias?: string };
+type Options = AnyAliasOptions & AnyFunctionAliasOptions;
 
 /**
  * first we are checking if we have imports of `prop-types` or `react-validators`
@@ -13,6 +20,7 @@ type Options = { anyAlias?: string; anyFunctionAlias?: string };
  */
 const reactShapePlugin: Plugin<Options> = {
   name: 'react-shape',
+
   run({ fileName, sourceFile, options, text }) {
     const baseName = path.basename(fileName);
     const importDeclarations = sourceFile.statements.filter(ts.isImportDeclaration);
@@ -55,6 +63,7 @@ const reactShapePlugin: Plugin<Options> = {
         undefined,
         false,
         ts.factory.createNamedExports([
+          // @ts-expect-error Ignore this error because I'm not using this plugin.
           ts.factory.createExportSpecifier(undefined, ts.factory.createIdentifier(shapeName)),
         ]),
       );
@@ -218,6 +227,11 @@ const reactShapePlugin: Plugin<Options> = {
 
     return updateSourceText(text, updates);
   },
+
+  validate: createValidate({
+    ...anyAliasProperty,
+    ...anyFunctionAliasProperty,
+  }),
 };
 
 function getTypeForTheShape(

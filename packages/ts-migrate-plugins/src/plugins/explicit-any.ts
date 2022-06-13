@@ -3,11 +3,13 @@ import { Collection } from 'jscodeshift/src/Collection';
 import ts from 'typescript';
 import { Plugin } from 'ts-migrate-server';
 import { isDiagnosticWithLinePosition } from '../utils/type-guards';
+import { AnyAliasOptions, validateAnyAliasOptions } from '../utils/validateOptions';
 
-type Options = { anyAlias?: string };
+type Options = AnyAliasOptions;
 
 const explicitAnyPlugin: Plugin<Options> = {
   name: 'explicit-any',
+
   run({ options, fileName, text, getLanguageService }) {
     const semanticDiagnostics = getLanguageService().getSemanticDiagnostics(fileName);
     const diagnostics = semanticDiagnostics
@@ -15,6 +17,8 @@ const explicitAnyPlugin: Plugin<Options> = {
       .filter((d) => d.category === ts.DiagnosticCategory.Error);
     return withExplicitAny(text, diagnostics, options.anyAlias);
   },
+
+  validate: validateAnyAliasOptions,
 };
 
 export default explicitAnyPlugin;
@@ -35,9 +39,9 @@ function withExplicitAny(
     diagnostics.filter((diagnostic) => diagnostic.code === 2683),
     typeAnnotation,
   );
-  replaceTS7006(
+  replaceTS7006AndTS7008(
     root,
-    diagnostics.filter((diagnostic) => diagnostic.code === 7006),
+    diagnostics.filter((diagnostic) => diagnostic.code === 7006 || diagnostic.code === 7008),
     typeAnnotation,
   );
   replaceTS7019(
@@ -74,6 +78,8 @@ function replaceTS2683(
   diagnostics: ts.DiagnosticWithLocation[],
   typeAnnotation: TSTypeAnnotation,
 ) {
+  const annotated = new Set();
+
   diagnostics.forEach((diagnostic) => {
     root
       .find(
@@ -91,13 +97,19 @@ function replaceTS2683(
         ) {
           newNode = newNode.parentPath;
         }
-        newNode.get('params').unshift(j.identifier.from({ name: 'this', typeAnnotation }));
+
+        // Add annotation only if we haven't already added one to this function.
+        if (!annotated.has(newNode)) {
+          newNode.get('params').unshift(j.identifier.from({ name: 'this', typeAnnotation }));
+          annotated.add(newNode);
+        }
       });
   });
 }
 
 // TS7006: "Parameter '{0}' implicitly has an '{1}' type."
-function replaceTS7006(
+// TS7008: "Member '{0}' implicitly has an '{1}' type."
+function replaceTS7006AndTS7008(
   root: Collection<any>,
   diagnostics: ts.DiagnosticWithLocation[],
   typeAnnotation: TSTypeAnnotation,
@@ -112,26 +124,44 @@ function replaceTS7006(
           node.typeAnnotation == null,
       )
       .forEach((path) => {
-        // Special case for single-parameter arrow surrounding parens issue.
-        if (
-          j.ArrowFunctionExpression.check(path.parent.node) &&
-          path.parent.node.params.length === 1
-        ) {
-          const paramIndex = path.parent.node.params.indexOf(path.node);
-          path.parent.replace(
-            j.arrowFunctionExpression.from({
-              ...path.parent.node,
-              params: [
-                ...path.parent.node.params.slice(0, paramIndex),
-                j.identifier.from({
-                  ...(path.parent.node.params[paramIndex] as Identifier),
-                  typeAnnotation,
-                }),
-                ...path.parent.node.params.slice(paramIndex + 1),
-              ],
-            }),
-          );
-        } else {
+        let replaceArrow = false;
+
+        const parentNode = path.parent.node;
+        if (j.ArrowFunctionExpression.check(parentNode)) {
+          // Special casing to work around jscodeshift bugs.
+          let { body, params } = parentNode;
+
+          // Object literals used as arrow function returns do not have
+          // parentheses added.
+          // https://github.com/benjamn/recast/issues/743
+          if (j.ObjectExpression.check(body)) {
+            replaceArrow = true;
+            body = j.objectExpression.from({ ...body });
+          }
+
+          // Make sure to add parentheses around single parameters.
+          if (params.length === 1) {
+            replaceArrow = true;
+            params = [
+              j.identifier.from({
+                ...(parentNode.params[0] as Identifier),
+                typeAnnotation,
+              }),
+            ];
+          }
+
+          if (replaceArrow) {
+            path.parent.replace(
+              j.arrowFunctionExpression.from({
+                ...parentNode,
+                params,
+                body,
+              }),
+            );
+          }
+        }
+
+        if (!replaceArrow) {
           path.get('typeAnnotation').replace(typeAnnotation);
         }
       });

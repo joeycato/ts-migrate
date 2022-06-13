@@ -3,17 +3,31 @@ import ts from 'typescript';
 import { Plugin } from 'ts-migrate-server';
 import { isDiagnosticWithLinePosition } from '../utils/type-guards';
 import updateSourceText, { SourceTextUpdate } from '../utils/updateSourceText';
+import { createValidate, Properties } from '../utils/validateOptions';
 
-type Options = { useTsIgnore?: boolean };
+type Options = {
+  useTsIgnore?: boolean;
+  messageLimit?: number;
+  messagePrefix?: string;
+};
+
+const optionProperties: Properties = {
+  useTsIgnore: { type: 'boolean' },
+  messageLimit: { type: 'number' },
+  messagePrefix: { type: 'string' },
+};
 
 const tsIgnorePlugin: Plugin<Options> = {
   name: 'ts-ignore',
+
   run({ getLanguageService, fileName, sourceFile, options }) {
     const diagnostics = getLanguageService()
       .getSemanticDiagnostics(fileName)
       .filter(isDiagnosticWithLinePosition);
     return getTextWithIgnores(sourceFile, diagnostics, options);
   },
+
+  validate: createValidate(optionProperties),
 };
 
 export default tsIgnorePlugin;
@@ -42,14 +56,17 @@ function getTextWithIgnores(
       .filter(Boolean);
     const message = messageLines[messageLines.length - 1];
     const errorExpression = options.useTsIgnore ? 'ts-ignore' : `ts-expect-error`;
-    const tsIgnoreCommentText = `@${errorExpression} ts-migrate(${code}) FIXME: ${
-      message.length > TS_IGNORE_MESSAGE_LIMIT
+    const messageLimit = options.messageLimit ?? TS_IGNORE_MESSAGE_LIMIT;
+    const messagePrefixInComment = options.messagePrefix ? ` ${options.messagePrefix}` : '';
+    const tsIgnoreCommentText = `@${errorExpression} TS(${code})${messagePrefixInComment}: ${
+      message.length > messageLimit
         ? `${message.slice(
             0,
-            TS_IGNORE_MESSAGE_LIMIT,
-          )}... Remove this comment to see the full error message`
+            messageLimit,
+          )}... (Remove this comment to see the full error message.)`
         : message
     }`;
+
     if (!isIgnored[diagnosticLine]) {
       let commentLine = diagnosticLine;
       let pos = getStartOfLinePos(commentLine, sourceFile);

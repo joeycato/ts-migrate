@@ -4,7 +4,7 @@ import { SourceTextUpdate } from '../../utils/updateSourceText';
 import { getTextPreservingWhitespace } from './text';
 
 export type DefaultImport = { defaultImport: string; moduleSpecifier: string };
-export type NamedImport = { namedImport: string; moduleSpecifier: string };
+export type NamedImport = { namedImport: string; moduleSpecifier: string, isTypeOnly?: boolean };
 export type ModuleImport = { moduleSpecifier: string };
 
 type AddImport = DefaultImport | NamedImport;
@@ -19,6 +19,8 @@ export function updateImports(
   const updates: SourceTextUpdate[] = [];
   const printer = ts.createPrinter();
 
+  // I'm not sure what the `usedIdentifiers` check is needed for. Is the idea that people are accidentally passing
+  // toAdd entries that are unused? In any event, it doesn't seem to detect `isTypeOnly` imports.
   const usedIdentifiers = getUsedIdentifiers(sourceFile);
   const presentedImports = getPresentedImportIdentifiers(sourceFile);
 
@@ -155,6 +157,7 @@ export function updateImports(
             : []),
           ...namedToAdd.map((cur) =>
             ts.factory.createImportSpecifier(
+              cur.isTypeOnly || false,
               undefined,
               ts.factory.createIdentifier(cur.namedImport),
             ),
@@ -185,6 +188,7 @@ export function updateImports(
           importDeclaration.modifiers,
           importClause,
           importDeclaration.moduleSpecifier,
+          undefined
         );
         const text = getTextPreservingWhitespace(importDeclaration, upImpDec, sourceFile);
         updates.push({
@@ -226,6 +230,7 @@ export function updateImports(
           ? ts.factory.createNamedImports(
               namedToAdd.map((cur) =>
                 ts.factory.createImportSpecifier(
+                  cur.isTypeOnly || false,
                   undefined,
                   ts.factory.createIdentifier(cur.namedImport),
                 ),

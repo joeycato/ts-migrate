@@ -26,6 +26,23 @@ import { migrate, MigrateConfig } from 'ts-migrate-server';
 import init from './commands/init';
 import rename from './commands/rename';
 
+const availablePlugins = [
+  addConversionsPlugin,
+  declareMissingClassPropertiesPlugin,
+  eslintFixPlugin,
+  explicitAnyPlugin,
+  hoistClassStaticsPlugin,
+  jsDocPlugin,
+  memberAccessibilityPlugin,
+  reactClassLifecycleMethodsPlugin,
+  reactClassStatePlugin,
+  reactDefaultPropsPlugin,
+  reactPropsPlugin,
+  reactShapePlugin,
+  stripTSIgnorePlugin,
+  tsIgnorePlugin,
+];
+
 // eslint-disable-next-line no-unused-expressions
 yargs
   .scriptName('npm run ts-migrate --')
@@ -67,8 +84,10 @@ yargs
     (args) => {
       const rootDir = path.resolve(process.cwd(), args.folder);
       const { sources } = args;
-      const exitCode = rename({ rootDir, sources });
-      process.exit(exitCode);
+      const renamedFiles = rename({ rootDir, sources });
+      if (renamedFiles === null) {
+        process.exit(-1);
+      }
     },
   )
   .command(
@@ -79,6 +98,11 @@ yargs
         .positional('folder', { type: 'string' })
         .choices('defaultAccessibility', ['private', 'protected', 'public'] as const)
         .string('plugin')
+        .choices(
+          'plugin',
+          availablePlugins.map((p) => p.name),
+        )
+        .describe('plugin', 'Run a specific plugin')
         .string('privateRegex')
         .string('protectedRegex')
         .string('publicRegex')
@@ -90,6 +114,10 @@ yargs
           '$0 migrate /frontend/foo -s "bar/**/*" -s "node_modules/**/*.d.ts"',
           'Migrate all the files in /frontend/foo/bar, accounting for ambient types from node_modules.',
         )
+        .example(
+          '$0 migrate /frontend/foo --plugin jsdoc',
+          'Migrate JSDoc comments for all the files in /frontend/foo',
+        )
         .require(['folder']),
     async (args) => {
       const rootDir = path.resolve(process.cwd(), args.folder);
@@ -97,22 +125,6 @@ yargs
       let config: MigrateConfig;
 
       if (args.plugin) {
-        const availablePlugins = [
-          addConversionsPlugin,
-          declareMissingClassPropertiesPlugin,
-          eslintFixPlugin,
-          explicitAnyPlugin,
-          hoistClassStaticsPlugin,
-          jsDocPlugin,
-          memberAccessibilityPlugin,
-          reactClassLifecycleMethodsPlugin,
-          reactClassStatePlugin,
-          reactDefaultPropsPlugin,
-          reactPropsPlugin,
-          reactShapePlugin,
-          stripTSIgnorePlugin,
-          tsIgnorePlugin,
-        ];
         const plugin = availablePlugins.find((cur) => cur.name === args.plugin);
         if (!plugin) {
           log.error(`Could not find a plugin named ${args.plugin}.`);
@@ -170,7 +182,7 @@ yargs
           .addPlugin(eslintFixPlugin, {});
       }
 
-      const exitCode = await migrate({ rootDir, config, sources });
+      const { exitCode } = await migrate({ rootDir, config, sources });
 
       process.exit(exitCode);
     },
@@ -178,7 +190,30 @@ yargs
   .command(
     'reignore <folder>',
     'Re-run ts-ignore on a project',
-    (cmd) => cmd.positional('folder', { type: 'string' }).require(['folder']),
+    (cmd) =>
+      cmd
+        .option('p', {
+          alias: 'messagePrefix',
+          default: '',
+          type: 'string',
+          describe:
+            'A message to add to the ts-expect-error or ts-ignore comments that are inserted.',
+        })
+        .option('s', {
+          alias: 'stripIgnores',
+          default: true,
+          type: 'boolean',
+          describe: 'Remove existing ts-ignore and ts-expect-errors.'
+        })
+        .option('f', {
+          alias: 'eslintFixChanged',
+          default: true,
+          type: 'boolean',
+          describe:
+            'A message to add to the ts-expect-error or ts-ignore comments that are inserted.',
+        })
+        .positional('folder', { type: 'string' })
+        .require(['folder']),
     async (args) => {
       const rootDir = path.resolve(process.cwd(), args.folder);
 
@@ -206,12 +241,21 @@ yargs
         },
       };
 
-      const config = new MigrateConfig()
-        .addPlugin(withChangeTracking(stripTSIgnorePlugin), {})
-        .addPlugin(withChangeTracking(tsIgnorePlugin), {})
-        .addPlugin(eslintFixChangedPlugin, {});
+      let config = new MigrateConfig();
 
-      const exitCode = await migrate({ rootDir, config });
+      if (args.stripIgnores) {
+        config = config.addPlugin(withChangeTracking(stripTSIgnorePlugin), {});
+      }
+
+      config = config.addPlugin(withChangeTracking(tsIgnorePlugin), {
+        messagePrefix: args.messagePrefix,
+      });
+
+      if (args.eslintFixChanged) {
+        config = config.addPlugin(eslintFixChangedPlugin, {});
+      }
+
+      const { exitCode } = await migrate({ rootDir, config });
 
       process.exit(exitCode);
     },
